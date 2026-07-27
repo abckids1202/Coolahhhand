@@ -209,14 +209,34 @@ export const EnergyOrb = () => {
         ctx.stroke();
       });
 
-      const core = ctx.createRadialGradient(x - base * 0.22, y - base * 0.25, 0, x, y, base);
+      const coreRadius = base * (0.82 - release * 0.2);
+      const core = ctx.createRadialGradient(x - coreRadius * 0.32, y - coreRadius * 0.38, 0, x, y, coreRadius * 1.12);
       core.addColorStop(0, "#ffffff");
-      core.addColorStop(0.18, `rgba(187, 252, 255, ${0.99 * intensity})`);
-      core.addColorStop(0.56, `rgba(56, 164, 255, ${0.8 * intensity})`);
-      core.addColorStop(1, "rgba(31, 65, 218, 0)");
+      core.addColorStop(0.2, `rgba(209, 253, 255, ${0.98 * intensity})`);
+      core.addColorStop(0.52, `rgba(69, 198, 255, ${0.86 * intensity})`);
+      core.addColorStop(0.82, `rgba(33, 107, 236, ${0.46 * intensity})`);
+      core.addColorStop(1, "rgba(18, 49, 167, 0)");
       ctx.fillStyle = core;
       ctx.beginPath();
-      ctx.ellipse(x, y, base * (1 - release * 0.3) * stretchX, base * (1 - release * 0.3) * stretchY, angle, 0, Math.PI * 2);
+      ctx.arc(x, y, coreRadius, 0, Math.PI * 2);
+      ctx.fill();
+
+      const coreRim = ctx.createRadialGradient(x, y, coreRadius * 0.42, x, y, coreRadius * 1.12);
+      coreRim.addColorStop(0, "rgba(255, 255, 255, 0)");
+      coreRim.addColorStop(0.7, `rgba(91, 219, 255, ${0.18 * intensity})`);
+      coreRim.addColorStop(1, `rgba(218, 252, 255, ${0.38 * intensity})`);
+      ctx.fillStyle = coreRim;
+      ctx.beginPath();
+      ctx.arc(x, y, coreRadius * 1.08, 0, Math.PI * 2);
+      ctx.fill();
+
+      const coreHighlight = ctx.createRadialGradient(x - coreRadius * 0.32, y - coreRadius * 0.34, 0, x - coreRadius * 0.28, y - coreRadius * 0.3, coreRadius * 0.34);
+      coreHighlight.addColorStop(0, `rgba(255, 255, 255, ${0.82 * intensity})`);
+      coreHighlight.addColorStop(0.55, `rgba(224, 255, 255, ${0.26 * intensity})`);
+      coreHighlight.addColorStop(1, "rgba(224, 255, 255, 0)");
+      ctx.fillStyle = coreHighlight;
+      ctx.beginPath();
+      ctx.arc(x - coreRadius * 0.28, y - coreRadius * 0.3, coreRadius * 0.36, 0, Math.PI * 2);
       ctx.fill();
 
       if (data.interactionState === "orb-released" && release < 0.22) {
@@ -236,3 +256,4 @@ export const EnergyOrb = () => {
 
   return <canvas ref={canvasRef} className="energy-orb" aria-label="Two-hand energy orb" />;
 };
+
