@@ -68,6 +68,10 @@ export const HUD = ({ cameraStatus, pointerMode, onReset, onFullscreen }: HUDPro
               <div><dt>MIDPOINT</dt><dd>{anchor ? `${anchor.smoothedMidpoint.x.toFixed(2)} / ${anchor.smoothedMidpoint.y.toFixed(2)}` : "--"}</dd></div>
               <div><dt>DISTANCE</dt><dd>{anchor ? anchor.smoothedDistance.toFixed(3) : "--"}</dd></div>
               <div><dt>RADIUS</dt><dd>{anchor ? anchor.radius.toFixed(0) : "--"}</dd></div>
+              <div><dt>EXPANSION</dt><dd>{anchor ? `${anchor.expansionCurve?.toFixed(2) ?? "--"} / ${anchor.expansionMetric?.toFixed(2) ?? "--"}` : "--"}</dd></div>
+              <div><dt>VIS RADIUS</dt><dd>{anchor?.visualRadius?.toFixed(2) ?? "--"}</dd></div>
+              <div><dt>STRETCH XYZ</dt><dd>{anchor ? `${anchor.stretchX?.toFixed(2) ?? "--"} / ${anchor.stretchY?.toFixed(2) ?? "--"} / ${anchor.stretchZ?.toFixed(2) ?? "--"}` : "--"}</dd></div>
+              <div><dt>AXIS ANGLE</dt><dd>{anchor ? `${((anchor.axisAngle ?? anchor.angle) * 180 / Math.PI).toFixed(1)}°` : "--"}</dd></div>
               <div><dt>OPEN / CLOSE</dt><dd>{anchor ? `${anchor.openingSpeed.toFixed(2)} / ${anchor.closingSpeed.toFixed(2)}` : "--"}</dd></div>
               <div><dt>READY TIMER</dt><dd>{tracking.interactionState === "two-hand-ready" ? `${Math.round(tracking.readyDuration)} / 220 MS` : "--"}</dd></div>
               <div><dt>DIST VALID</dt><dd>{tracking.readiness.validDistance ? "YES" : "NO"}</dd></div>
@@ -94,4 +98,5 @@ export const HUD = ({ cameraStatus, pointerMode, onReset, onFullscreen }: HUDPro
     </div>
   );
 };
+
 

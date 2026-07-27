@@ -1,4 +1,4 @@
-﻿export interface NormalizedLandmark {
+export interface NormalizedLandmark {
   x: number;
   y: number;
   z: number;
@@ -61,6 +61,17 @@ export interface TwoHandEffectAnchor {
   facingConfidence: number;
   stabilityConfidence: number;
   overallConfidence: number;
+  wristDistance?: number;
+  expansionMetric?: number;
+  normalizedExpansion?: number;
+  expansionCurve?: number;
+  targetVisualRadius?: number;
+  visualRadius?: number;
+  stretchX?: number;
+  stretchY?: number;
+  stretchZ?: number;
+  axisAngle?: number;
+  turbulence?: number;
 }
 
 export interface TrackedHand extends StableTrackedHand {
@@ -86,3 +97,4 @@ export interface VideoLayout {
 }
 
 export type ModelStatus = "idle" | "loading" | "ready" | "error";
+

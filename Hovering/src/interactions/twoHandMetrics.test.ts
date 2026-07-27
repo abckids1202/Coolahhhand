@@ -1,4 +1,4 @@
-﻿import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { createTwoHandAnchor } from "./twoHandMetrics";
 import type { StableTrackedHand } from "../tracking/tracking.types";
 
@@ -35,6 +35,19 @@ describe("createTwoHandAnchor", () => {
     expect(anchor?.radius).toBeGreaterThan(40);
   });
 
+  it("derives nonlinear expansion, visual radius, and axis deformation", () => {
+    const left = hand("left", -0.8);
+    const right = hand("right", 0.8);
+    left.landmarks[0] = { x: 0, y: 0.5, z: 0 };
+    right.landmarks[0] = { x: 1, y: 0.5, z: 0 };
+    const anchor = createTwoHandAnchor([left, right], null, 1 / 60);
+    expect(anchor?.expansionMetric).toBeGreaterThan(1);
+    expect(anchor?.targetVisualRadius).toBeGreaterThan(0.18);
+    expect(anchor?.stretchX).toBeGreaterThan(1);
+    expect(anchor?.stretchY).toBeLessThan(1);
+    expect(anchor?.axisAngle).toBeCloseTo(0);
+  });
+
   it("reports closing speed when hands move inward", () => {
     const previous = createTwoHandAnchor([hand("left", -0.7), hand("right", 0.7)], null, 1 / 60);
     const current = createTwoHandAnchor([hand("left", -0.45), hand("right", 0.45)], previous, 1 / 30);
@@ -43,3 +56,4 @@ describe("createTwoHandAnchor", () => {
     expect(current?.openingSpeed).toBe(0);
   });
 });
+
