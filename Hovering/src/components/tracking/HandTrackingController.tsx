@@ -1,4 +1,4 @@
-import { useEffect, useRef, type RefObject } from "react";
+﻿import { useEffect, useRef, type RefObject } from "react";
 import type { HandLandmarker } from "@mediapipe/tasks-vision";
 import { useTrackingStore } from "../../stores/useTrackingStore";
 import { useUIStore } from "../../stores/useUIStore";
@@ -13,10 +13,16 @@ import {
 import { classifyGesture, GestureStabilizer } from "../../tracking/gestureClassifier";
 import { AdaptiveLandmarkSmoother } from "../../tracking/landmarkSmoothing";
 import { createHandLandmarker } from "../../tracking/createHandLandmarker";
+import { HandIdentityTracker, type HandDetectionInput } from "../../interactions/handIdentityTracker";
+import { createTwoHandAnchor } from "../../interactions/twoHandMetrics";
+import { resolveInteractionFrame } from "../../interactions/interactionStateMachine";
+import type { InteractionState } from "../../interactions/interaction.types";
 import type {
   NormalizedLandmark,
   TrackedHand,
+  TwoHandEffectAnchor,
   VideoLayout,
+  WorldPoint,
 } from "../../tracking/tracking.types";
 import { LandmarkDebugOverlay } from "./LandmarkDebugOverlay";
 
@@ -39,9 +45,7 @@ const drawHand = (
   layout: VideoLayout,
   debug: boolean,
 ) => {
-  const points = hand.landmarks.map((landmark) =>
-    normalizedLandmarkToScreen(landmark, layout),
-  );
+  const points = hand.landmarks.map((landmark) => normalizedLandmarkToScreen(landmark, layout));
   context.save();
   context.lineCap = "round";
   context.strokeStyle = "rgba(145, 255, 214, .42)";
@@ -88,31 +92,80 @@ const drawHand = (
     context.strokeRect(minX, minY, width, height);
     context.font = "10px ui-monospace, monospace";
     context.fillStyle = "#c6ffe9";
-    context.fillText(
-      `${hand.handedness.toUpperCase()} / ${hand.gesture.toUpperCase()}`,
-      minX,
-      minY - 8,
-    );
+    context.fillText(`${hand.id} ${hand.screenSide.toUpperCase()} / ${hand.gesture.toUpperCase()}`, minX, minY - 8);
     context.fillStyle = "rgba(198, 255, 233, .7)";
-    context.fillText(
-      `P ${hand.pinchStrength.toFixed(2)}  O ${hand.openness.toFixed(2)}`,
-      minX,
-      minY + height + 14,
-    );
+    context.fillText(`P ${hand.pinchStrength.toFixed(2)}  O ${hand.openness.toFixed(2)}`, minX, minY + height + 14);
   }
   context.restore();
 };
 
-export const HandTrackingController = ({
-  videoRef,
-  active,
-}: HandTrackingControllerProps) => {
+const worldToScreen = (point: WorldPoint, width: number, height: number) => ({
+  x: ((point.x + 1) * 0.5) * width,
+  y: ((1 - point.y) * 0.5) * height,
+});
+
+const drawTwoHandAnchor = (
+  context: CanvasRenderingContext2D,
+  anchor: TwoHandEffectAnchor | null,
+  width: number,
+  height: number,
+  interactionState: InteractionState,
+) => {
+  if (!anchor) return;
+  const left = worldToScreen(anchor.leftPalm, width, height);
+  const right = worldToScreen(anchor.rightPalm, width, height);
+  const midpoint = worldToScreen(anchor.smoothedMidpoint, width, height);
+
+  context.save();
+  context.lineCap = "round";
+  context.lineWidth = 1.5;
+  context.strokeStyle = "rgba(76, 195, 255, .72)";
+  context.beginPath();
+  context.moveTo(left.x, left.y);
+  context.lineTo(right.x, right.y);
+  context.stroke();
+
+  [[left, "L", "#8fffe1"], [right, "R", "#ffdf8f"]].forEach(([point, label, color]) => {
+    const p = point as { x: number; y: number };
+    context.fillStyle = color as string;
+    context.beginPath();
+    context.arc(p.x, p.y, 7, 0, Math.PI * 2);
+    context.fill();
+    context.font = "11px ui-monospace, monospace";
+    context.fillText(label as string, p.x + 10, p.y - 8);
+  });
+
+  context.strokeStyle = "rgba(118, 238, 255, .78)";
+  context.setLineDash([5, 8]);
+  context.beginPath();
+  context.arc(midpoint.x, midpoint.y, anchor.radius, 0, Math.PI * 2);
+  context.stroke();
+  context.setLineDash([]);
+  context.beginPath();
+  context.moveTo(midpoint.x - 12, midpoint.y);
+  context.lineTo(midpoint.x + 12, midpoint.y);
+  context.moveTo(midpoint.x, midpoint.y - 12);
+  context.lineTo(midpoint.x, midpoint.y + 12);
+  context.stroke();
+
+  context.fillStyle = "rgba(220, 252, 255, .86)";
+  context.font = "11px ui-monospace, monospace";
+  context.fillText(
+    `${interactionState} d=${anchor.smoothedDistance.toFixed(2)} r=${anchor.radius.toFixed(0)} close=${anchor.closingSpeed.toFixed(2)} open=${anchor.openingSpeed.toFixed(2)}`,
+    midpoint.x + 16,
+    midpoint.y + 18,
+  );
+  context.restore();
+};
+
+export const HandTrackingController = ({ videoRef, active }: HandTrackingControllerProps) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const smoothersRef = useRef(new Map<string, AdaptiveLandmarkSmoother>());
   const stabilizersRef = useRef(new Map<string, GestureStabilizer>());
-  const previousPalmsRef = useRef(
-    new Map<string, { x: number; y: number; time: number }>(),
-  );
+  const identityTrackerRef = useRef(new HandIdentityTracker());
+  const twoHandAnchorRef = useRef<TwoHandEffectAnchor | null>(null);
+  const interactionStateRef = useRef<InteractionState>("idle");
+  const previousDetectionAtRef = useRef(0);
   const updateTracking = useTrackingStore((state) => state.update);
 
   useEffect(() => {
@@ -121,6 +174,7 @@ export const HandTrackingController = ({
     let frameId = 0;
     let detector: HandLandmarker | null = null;
     const overlayCanvas = canvasRef.current;
+    const identityTracker = identityTrackerRef.current;
     let previousDetectionAt = 0;
     let previousUiUpdateAt = 0;
     let fpsWindowStart = performance.now();
@@ -140,8 +194,7 @@ export const HandTrackingController = ({
       } catch {
         updateTracking({
           modelStatus: "error",
-          errorMessage:
-            "The hand-tracking model failed to load. Retry or continue in pointer mode.",
+          errorMessage: "The hand-tracking model failed to load. Retry or continue in pointer mode.",
         });
         return;
       }
@@ -156,7 +209,9 @@ export const HandTrackingController = ({
         const trackingRate = useUIStore.getState().trackingRate;
         const now = performance.now();
         if (now - previousDetectionAt < 1000 / trackingRate) return;
+        const deltaTime = Math.max((now - (previousDetectionAtRef.current || now)) / 1000, 1 / 120);
         previousDetectionAt = now;
+        previousDetectionAtRef.current = now;
 
         const rect = canvas.getBoundingClientRect();
         const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -179,84 +234,75 @@ export const HandTrackingController = ({
           return;
         }
         const inferenceMs = performance.now() - startedAt;
-        const layout = calculateCoverLayout(
-          video.videoWidth,
-          video.videoHeight,
-          rect.width,
-          rect.height,
-        );
+        const layout = calculateCoverLayout(video.videoWidth, video.videoHeight, rect.width, rect.height);
 
-        const hands: TrackedHand[] = result.landmarks.map(
-          (rawLandmarks, handIndex) => {
-            const category = result.handedness[handIndex]?.[0];
-            const handedness =
-              category?.categoryName === "Left" || category?.categoryName === "Right"
-                ? category.categoryName
-                : "Unknown";
-            const id = `${handedness}-${handIndex}`;
-            if (!smoothersRef.current.has(id)) {
-              smoothersRef.current.set(id, new AdaptiveLandmarkSmoother());
-              stabilizersRef.current.set(id, new GestureStabilizer());
-            }
-            const landmarks = smoothersRef.current
-              .get(id)!
-              .update(rawLandmarks as NormalizedLandmark[]);
-            const palmCenter = calculatePalmCenter(landmarks);
-            const screenPalmCenter = normalizedLandmarkToScreen(palmCenter, layout);
-            const ndc = screenToNdc(
-              screenPalmCenter,
-              rect.width,
-              rect.height,
-            );
-            const openness = calculateOpenness(landmarks, palmCenter);
-            const pinchStrength = calculatePinchStrength(landmarks);
-            const stableGesture = stabilizersRef.current
-              .get(id)!
-              .update(classifyGesture(openness, pinchStrength));
-            const previous = previousPalmsRef.current.get(id);
-            const deltaSeconds = Math.max(
-              ((now - (previous?.time ?? now)) / 1000),
-              1 / 120,
-            );
-            const velocity = previous
-              ? {
-                  x: (screenPalmCenter.x - previous.x) / deltaSeconds,
-                  y: (screenPalmCenter.y - previous.y) / deltaSeconds,
-                }
-              : { x: 0, y: 0 };
-            previousPalmsRef.current.set(id, {
-              ...screenPalmCenter,
-              time: now,
-            });
-            const handScale = calculateHandScale(landmarks);
-            return {
-              id,
-              handedness,
-              landmarks,
-              palmCenter,
-              screenPalmCenter,
-              worldPalmCenter: {
-                x: ndc.x,
-                y: ndc.y,
-                z: -Math.min(handScale * 4, 1),
-              },
-              velocity,
-              speed: Math.hypot(velocity.x, velocity.y),
-              openness,
-              pinchStrength,
-              estimatedDepth: Math.min(handScale * 4, 1),
-              rotation: calculateRotation(landmarks),
-              gesture: stableGesture.gesture,
-              gestureConfidence: stableGesture.confidence,
-              trackingConfidence: category?.score ?? 0,
-              lastSeenAt: now,
-            };
+        const detections: HandDetectionInput[] = result.landmarks.map((rawLandmarks, handIndex) => {
+          const category = result.handedness[handIndex]?.[0];
+          const anatomicalSide = category?.categoryName === "Left" || category?.categoryName === "Right"
+            ? category.categoryName
+            : "Unknown";
+          const rawKey = `${anatomicalSide}-${handIndex}`;
+          if (!smoothersRef.current.has(rawKey)) {
+            smoothersRef.current.set(rawKey, new AdaptiveLandmarkSmoother());
+            stabilizersRef.current.set(rawKey, new GestureStabilizer());
+          }
+          const landmarks = smoothersRef.current.get(rawKey)!.update(rawLandmarks as NormalizedLandmark[]);
+          const palmCenter = calculatePalmCenter(landmarks);
+          const screenPalmCenter = normalizedLandmarkToScreen(palmCenter, layout);
+          const ndc = screenToNdc(screenPalmCenter, rect.width, rect.height);
+          const openness = calculateOpenness(landmarks, palmCenter);
+          const pinchStrength = calculatePinchStrength(landmarks);
+          const rawGesture = classifyGesture(openness, pinchStrength);
+          const stableGesture = stabilizersRef.current.get(rawKey)!.update(rawGesture);
+          const handScale = calculateHandScale(landmarks);
+          const pinchScreen = normalizedLandmarkToScreen({
+            x: (landmarks[4].x + landmarks[8].x) * 0.5,
+            y: (landmarks[4].y + landmarks[8].y) * 0.5,
+          }, layout);
+          const pinchNdc = screenToNdc(pinchScreen, rect.width, rect.height);
+
+          return {
+            anatomicalSide,
+            screenSide: screenPalmCenter.x < rect.width * 0.5 ? "Left" : "Right",
+            landmarks,
+            palmNormalized: palmCenter,
+            palmScreen: screenPalmCenter,
+            palmWorld: { x: ndc.x, y: ndc.y, z: -Math.min(handScale * 4, 1) },
+            pinchPointWorld: { x: pinchNdc.x, y: pinchNdc.y, z: -Math.min(handScale * 4, 1) },
+            openness,
+            pinchStrength,
+            estimatedDepth: Math.min(handScale * 4, 1),
+            palmFacingScore: 0.55,
+            rawGesture: rawGesture.gesture,
+            stableGesture: stableGesture.gesture,
+            gestureConfidence: stableGesture.confidence,
+            trackingConfidence: category?.score ?? 0,
+          };
+        });
+
+        const stableHands = identityTracker.update(detections, now);
+        const hands: TrackedHand[] = stableHands.map((hand) => ({
+          ...hand,
+          handedness: hand.anatomicalSide,
+          palmCenter: hand.palmNormalized,
+          screenPalmCenter: hand.palmScreen,
+          worldPalmCenter: hand.palmWorld,
+          velocity: {
+            x: hand.velocityWorld.x * (rect.width / 2),
+            y: -hand.velocityWorld.y * (rect.height / 2),
           },
-        );
+          rotation: calculateRotation(hand.landmarks),
+          gesture: hand.stableGesture,
+        }));
+        const twoHandAnchor = createTwoHandAnchor(hands, twoHandAnchorRef.current, deltaTime);
+        twoHandAnchorRef.current = twoHandAnchor;
+        const interaction = resolveInteractionFrame(hands, twoHandAnchor, interactionStateRef.current);
+        interactionStateRef.current = interaction.state;
 
-        hands.forEach((hand) =>
-          drawHand(context, hand, layout, useUIStore.getState().debug),
-        );
+        hands.forEach((hand) => drawHand(context, hand, layout, useUIStore.getState().debug));
+        if (useUIStore.getState().debug) {
+          drawTwoHandAnchor(context, twoHandAnchor, rect.width, rect.height, interaction.state);
+        }
         frameCount += 1;
         if (now - fpsWindowStart >= 1000) {
           trackingFps = (frameCount * 1000) / (now - fpsWindowStart);
@@ -271,6 +317,8 @@ export const HandTrackingController = ({
             confidence: primary?.gestureConfidence ?? 0,
             trackingFps,
             inferenceMs,
+            twoHandAnchor,
+            interactionState: interaction.state,
           });
           previousUiUpdateAt = now;
         }
@@ -283,6 +331,9 @@ export const HandTrackingController = ({
       cancelled = true;
       cancelAnimationFrame(frameId);
       detector?.close();
+      identityTracker.reset();
+      twoHandAnchorRef.current = null;
+      interactionStateRef.current = "idle";
       const canvas = overlayCanvas;
       canvas?.getContext("2d")?.clearRect(0, 0, canvas.width, canvas.height);
       updateTracking({
@@ -290,9 +341,13 @@ export const HandTrackingController = ({
         gesture: "none",
         confidence: 0,
         modelStatus: "idle",
+        twoHandAnchor: null,
+        interactionState: "idle",
       });
     };
   }, [active, updateTracking, videoRef]);
 
   return <LandmarkDebugOverlay canvasRef={canvasRef} />;
 };
+
+

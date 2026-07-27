@@ -1,9 +1,11 @@
-import { create } from "zustand";
+﻿import { create } from "zustand";
 import type {
   GestureType,
   ModelStatus,
   TrackedHand,
+  TwoHandEffectAnchor,
 } from "../tracking/tracking.types";
+import type { InteractionState } from "../interactions/interaction.types";
 
 export interface TrackingSnapshot {
   hands: TrackedHand[];
@@ -13,6 +15,8 @@ export interface TrackingSnapshot {
   inferenceMs: number;
   modelStatus: ModelStatus;
   errorMessage: string | null;
+  twoHandAnchor: TwoHandEffectAnchor | null;
+  interactionState: InteractionState;
 }
 
 interface TrackingState extends TrackingSnapshot {
@@ -28,6 +32,8 @@ const initial: TrackingSnapshot = {
   inferenceMs: 0,
   modelStatus: "idle",
   errorMessage: null,
+  twoHandAnchor: null,
+  interactionState: "idle",
 };
 
 export const useTrackingStore = create<TrackingState>((set) => ({

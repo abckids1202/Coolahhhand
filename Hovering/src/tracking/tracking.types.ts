@@ -1,4 +1,4 @@
-export interface NormalizedLandmark {
+﻿export interface NormalizedLandmark {
   x: number;
   y: number;
   z: number;
@@ -16,25 +16,61 @@ export interface WorldPoint {
   z: number;
 }
 
-export type GestureType = "none" | "open-palm" | "fist" | "pinch";
+export type GestureType = "none" | "open-palm" | "fist" | "pinch" | "point" | "unknown";
 
-export interface TrackedHand {
+export interface StableTrackedHand {
   id: string;
-  handedness: "Left" | "Right" | "Unknown";
+  anatomicalSide: "Left" | "Right" | "Unknown";
+  screenSide: "Left" | "Right";
   landmarks: NormalizedLandmark[];
-  palmCenter: NormalizedLandmark;
-  screenPalmCenter: ScreenPoint;
-  worldPalmCenter: WorldPoint;
-  velocity: ScreenPoint;
+  palmNormalized: NormalizedLandmark;
+  palmScreen: ScreenPoint;
+  palmWorld: WorldPoint;
+  pinchPointWorld: WorldPoint;
+  velocityWorld: WorldPoint;
   speed: number;
   openness: number;
   pinchStrength: number;
   estimatedDepth: number;
-  rotation: number;
-  gesture: GestureType;
+  palmFacingScore: number;
+  rawGesture: GestureType;
+  stableGesture: GestureType;
   gestureConfidence: number;
   trackingConfidence: number;
+  firstSeenAt: number;
   lastSeenAt: number;
+}
+
+export interface TwoHandEffectAnchor {
+  leftHandId: string;
+  rightHandId: string;
+  leftPalm: WorldPoint;
+  rightPalm: WorldPoint;
+  midpoint: WorldPoint;
+  smoothedMidpoint: WorldPoint;
+  direction: WorldPoint;
+  distance: number;
+  smoothedDistance: number;
+  normalizedDistance: number;
+  angle: number;
+  distanceVelocity: number;
+  closingSpeed: number;
+  openingSpeed: number;
+  radius: number;
+  targetRadius: number;
+  facingConfidence: number;
+  stabilityConfidence: number;
+  overallConfidence: number;
+}
+
+export interface TrackedHand extends StableTrackedHand {
+  handedness: "Left" | "Right" | "Unknown";
+  palmCenter: NormalizedLandmark;
+  screenPalmCenter: ScreenPoint;
+  worldPalmCenter: WorldPoint;
+  velocity: ScreenPoint;
+  rotation: number;
+  gesture: GestureType;
 }
 
 export interface VideoLayout {
