@@ -100,15 +100,92 @@ export const EnergyOrb = () => {
 
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, rect.width, rect.height);
-      if (!ORB_STATES.has(data.interactionState)) {
+      const oneHand = data.interactionState === "one-hand"
+        && data.hands.length === 1
+        && data.hands[0].gesture === "open-palm"
+        && data.hands[0].openness >= 0.62
+        && data.hands[0].trackingConfidence >= 0.5;
+      if (!ORB_STATES.has(data.interactionState) && !oneHand) {
         raf = requestAnimationFrame(draw);
         return;
       }
 
       const anchor = data.twoHandAnchor;
-      const point = data.releaseAnchor ?? anchor?.smoothedMidpoint ?? { x: 0, y: 0, z: 0 };
+      const hand = oneHand ? data.hands[0] : null;
+      const point = data.releaseAnchor ?? anchor?.smoothedMidpoint ?? hand?.worldPalmCenter ?? { x: 0, y: 0, z: 0 };
       const x = (point.x + 1) * 0.5 * rect.width;
       const y = (1 - point.y) * 0.5 * rect.height;
+      if (oneHand && hand) {
+        const handEnergy = clamp(hand.openness * hand.trackingConfidence, 0.45, 1);
+        const spin = time * 0.0068;
+        const pulse = 1 + Math.sin(time * 0.009) * 0.08;
+        const base = Math.max(22, Math.min(rect.width, rect.height) * (0.045 + handEnergy * 0.02)) * pulse;
+        const glow = ctx.createRadialGradient(x, y, 0, x, y, base * 4.8);
+        glow.addColorStop(0, `rgba(255, 238, 224, ${0.92 * handEnergy})`);
+        glow.addColorStop(0.2, `rgba(255, 96, 62, ${0.68 * handEnergy})`);
+        glow.addColorStop(0.56, `rgba(213, 24, 24, ${0.3 * handEnergy})`);
+        glow.addColorStop(1, "rgba(85, 0, 0, 0)");
+        ctx.save();
+        ctx.globalCompositeOperation = "lighter";
+        ctx.fillStyle = glow;
+        ctx.beginPath();
+        ctx.arc(x, y, base * 4.8, 0, Math.PI * 2);
+        ctx.fill();
+
+        for (let ring = 0; ring < 6; ring++) {
+          const ringRadius = base * (0.72 + ring * 0.3);
+          ctx.strokeStyle = `rgba(255, ${ring % 2 ? 90 : 178}, ${ring % 2 ? 62 : 36}, ${(0.46 - ring * 0.045) * handEnergy})`;
+          ctx.lineWidth = ring === 0 ? 1.8 : 0.9;
+          ctx.beginPath();
+          ctx.ellipse(x, y, ringRadius * (1.12 + ring * 0.05), ringRadius * (0.42 + ring * 0.035), spin * (ring % 2 ? -1 : 1), 0, Math.PI * 2);
+          ctx.stroke();
+        }
+
+        for (let ray = 0; ray < 18; ray++) {
+          const angle = spin * (ray % 2 ? -1.15 : 1) + ray * (Math.PI * 2 / 18);
+          const inner = base * (0.9 + (ray % 3) * 0.16);
+          const outer = inner + base * (1.15 + (ray % 5) * 0.2);
+          const wave = Math.sin(time * 0.01 + ray) * base * 0.13;
+          ctx.strokeStyle = `rgba(255, ${108 + (ray % 3) * 28}, ${44 + (ray % 4) * 10}, ${(0.18 + (ray % 4) * 0.035) * handEnergy})`;
+          ctx.lineWidth = ray % 5 === 0 ? 1.5 : 0.7;
+          ctx.beginPath();
+          ctx.moveTo(x + Math.cos(angle) * inner, y + Math.sin(angle) * inner * 0.5);
+          ctx.lineTo(x + Math.cos(angle + 0.08) * outer, y + Math.sin(angle + 0.08) * outer * 0.5 + wave);
+          ctx.stroke();
+        }
+
+        for (let spark = 0; spark < 28; spark++) {
+          const angle = spin * (spark % 2 ? -1.25 : 1.08) + spark * 2.399;
+          const orbit = base * (1.25 + (spark % 9) * 0.19) + Math.sin(time * 0.008 + spark) * base * 0.3;
+          const sx = x + Math.cos(angle) * orbit;
+          const sy = y + Math.sin(angle) * orbit * (0.48 + (spark % 4) * 0.04);
+          const size = 1.2 + (spark % 4) * 0.65;
+          ctx.fillStyle = `rgba(255, ${142 + (spark % 3) * 25}, ${66 + (spark % 4) * 9}, ${(0.35 + (spark % 5) * 0.08) * handEnergy})`;
+          ctx.beginPath();
+          ctx.arc(sx, sy, size, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        const coreRadius = base * 0.82;
+        const core = ctx.createRadialGradient(x - coreRadius * 0.3, y - coreRadius * 0.38, 0, x, y, coreRadius * 1.1);
+        core.addColorStop(0, "#fff8f3");
+        core.addColorStop(0.22, `rgba(255, 187, 156, ${0.98 * handEnergy})`);
+        core.addColorStop(0.56, `rgba(255, 68, 42, ${0.9 * handEnergy})`);
+        core.addColorStop(0.84, `rgba(172, 8, 14, ${0.64 * handEnergy})`);
+        core.addColorStop(1, "rgba(75, 0, 0, 0)");
+        ctx.fillStyle = core;
+        ctx.beginPath();
+        ctx.arc(x, y, coreRadius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = `rgba(255, 212, 187, ${0.62 * handEnergy})`;
+        ctx.lineWidth = 1.1;
+        ctx.beginPath();
+        ctx.arc(x, y, coreRadius * 1.05, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+        raf = requestAnimationFrame(draw);
+        return;
+      }
       const formation = data.interactionState === "orb-forming" ? ease(data.formationProgress) : 1;
       const release = data.interactionState === "orb-released" ? data.releaseProgress : 0;
       const fade = data.interactionState === "orb-fading" ? 0.5 : 1;
