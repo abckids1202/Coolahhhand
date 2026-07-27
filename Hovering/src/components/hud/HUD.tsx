@@ -1,4 +1,4 @@
-﻿import { BRAND } from "../../config/brand";
+import { BRAND } from "../../config/brand";
 import { useRenderFps } from "../../hooks/useRenderFps";
 import type { CameraStatus } from "../../hooks/useCamera";
 import { useTrackingStore } from "../../stores/useTrackingStore";
@@ -69,6 +69,11 @@ export const HUD = ({ cameraStatus, pointerMode, onReset, onFullscreen }: HUDPro
               <div><dt>DISTANCE</dt><dd>{anchor ? anchor.smoothedDistance.toFixed(3) : "--"}</dd></div>
               <div><dt>RADIUS</dt><dd>{anchor ? anchor.radius.toFixed(0) : "--"}</dd></div>
               <div><dt>OPEN / CLOSE</dt><dd>{anchor ? `${anchor.openingSpeed.toFixed(2)} / ${anchor.closingSpeed.toFixed(2)}` : "--"}</dd></div>
+              <div><dt>READY TIMER</dt><dd>{tracking.interactionState === "two-hand-ready" ? `${Math.round(tracking.readyDuration)} / 220 MS` : "--"}</dd></div>
+              <div><dt>DIST VALID</dt><dd>{tracking.readiness.validDistance ? "YES" : "NO"}</dd></div>
+              <div><dt>STABILITY</dt><dd>{tracking.readiness.overallScore.toFixed(2)}</dd></div>
+              <div><dt>CHARGE</dt><dd>{Math.round(tracking.charge * 100)}%</dd></div>
+              <div><dt>ORB</dt><dd>{["orb-forming","orb-stable","orb-compressing","orb-expanding","orb-charging","orb-released","orb-fading"].includes(tracking.interactionState) ? "MOUNTED" : "--"}</dd></div>
             </>
           )}
         </dl>
@@ -89,3 +94,4 @@ export const HUD = ({ cameraStatus, pointerMode, onReset, onFullscreen }: HUDPro
     </div>
   );
 };
+

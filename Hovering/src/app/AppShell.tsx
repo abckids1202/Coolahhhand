@@ -4,6 +4,7 @@ import { CameraPermissionPanel } from "../components/camera/CameraPermissionPane
 import { HUD } from "../components/hud/HUD";
 import { SettingsPanel } from "../components/hud/SettingsPanel";
 import { CalibrationGuide } from "../components/tracking/CalibrationGuide";
+import { EnergyOrb } from "../components/effects/EnergyOrb";
 import { HandTrackingController } from "../components/tracking/HandTrackingController";
 import { PointerFallback } from "../components/tracking/PointerFallback";
 import { useCamera } from "../hooks/useCamera";
@@ -102,6 +103,7 @@ export const AppShell = () => {
             />
           )}
           {mode === "pointer" && <PointerFallback />}
+          {mode === "camera" && <EnergyOrb />}
 
           <HUD
             cameraStatus={camera.status}
@@ -165,3 +167,4 @@ export const AppShell = () => {
     </div>
   );
 };
+

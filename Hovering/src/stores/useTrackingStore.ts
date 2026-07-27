@@ -1,4 +1,4 @@
-﻿import { create } from "zustand";
+import { create } from "zustand";
 import type {
   GestureType,
   ModelStatus,
@@ -17,6 +17,15 @@ export interface TrackingSnapshot {
   errorMessage: string | null;
   twoHandAnchor: TwoHandEffectAnchor | null;
   interactionState: InteractionState;
+  charge: number;
+  maximumCharge: number;
+  formationProgress: number;
+  releaseProgress: number;
+  readiness: { hasTwoHands: boolean; validTrackingConfidence: boolean; validDistance: boolean; validStability: boolean; validFacing: boolean; overallScore: number };
+  candidateDuration: number;
+  readyDuration: number;
+  releaseAnchor: { x: number; y: number; z: number } | null;
+  orbEvent: string | null;
 }
 
 interface TrackingState extends TrackingSnapshot {
@@ -34,6 +43,9 @@ const initial: TrackingSnapshot = {
   errorMessage: null,
   twoHandAnchor: null,
   interactionState: "idle",
+  charge: 0, maximumCharge: 0, formationProgress: 0, releaseProgress: 0,
+  readiness: { hasTwoHands: false, validTrackingConfidence: false, validDistance: false, validStability: false, validFacing: false, overallScore: 0 },
+  candidateDuration: 0, readyDuration: 0, releaseAnchor: null, orbEvent: null,
 };
 
 export const useTrackingStore = create<TrackingState>((set) => ({
@@ -41,3 +53,5 @@ export const useTrackingStore = create<TrackingState>((set) => ({
   update: (snapshot) => set(snapshot),
   reset: () => set(initial),
 }));
+
+

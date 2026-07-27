@@ -1,26 +1,4 @@
-﻿import type { GestureType, StableTrackedHand, TwoHandEffectAnchor } from "../tracking/tracking.types";
-
-export type InteractionState =
-  | "idle"
-  | "one-hand-hover"
-  | "one-hand-open"
-  | "one-hand-fist"
-  | "one-hand-pinch"
-  | "two-hand-ready"
-  | "orb-forming"
-  | "orb-stable"
-  | "orb-compressing"
-  | "orb-expanding"
-  | "orb-charging"
-  | "orb-released"
-  | "cooldown";
-
-export interface InteractionFrame {
-  state: InteractionState;
-  hands: StableTrackedHand[];
-  twoHandAnchor: TwoHandEffectAnchor | null;
-  primaryGesture: GestureType;
-  chargeLevel: number;
-  releaseReady: boolean;
-  lastEvent: string | null;
-}
+import type { GestureType, StableTrackedHand, TwoHandEffectAnchor } from "../tracking/tracking.types";
+export type InteractionState = "idle"|"one-hand"|"two-hand-candidate"|"two-hand-ready"|"orb-forming"|"orb-stable"|"orb-compressing"|"orb-expanding"|"orb-charging"|"orb-released"|"orb-fading"|"cooldown";
+export interface OrbReadiness { hasTwoHands:boolean; validTrackingConfidence:boolean; validDistance:boolean; validStability:boolean; validFacing:boolean; overallScore:number; }
+export interface InteractionFrame { state:InteractionState; hands:StableTrackedHand[]; twoHandAnchor:TwoHandEffectAnchor|null; primaryGesture:GestureType; chargeLevel:number; maximumCharge:number; releaseReady:boolean; formationProgress:number; releaseProgress:number; readiness:OrbReadiness; candidateDuration:number; readyDuration:number; lastEvent:string|null; }

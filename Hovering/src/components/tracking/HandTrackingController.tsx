@@ -1,4 +1,4 @@
-﻿import { useEffect, useRef, type RefObject } from "react";
+import { useEffect, useRef, type RefObject } from "react";
 import type { HandLandmarker } from "@mediapipe/tasks-vision";
 import { useTrackingStore } from "../../stores/useTrackingStore";
 import { useUIStore } from "../../stores/useUIStore";
@@ -15,7 +15,7 @@ import { AdaptiveLandmarkSmoother } from "../../tracking/landmarkSmoothing";
 import { createHandLandmarker } from "../../tracking/createHandLandmarker";
 import { HandIdentityTracker, type HandDetectionInput } from "../../interactions/handIdentityTracker";
 import { createTwoHandAnchor } from "../../interactions/twoHandMetrics";
-import { resolveInteractionFrame } from "../../interactions/interactionStateMachine";
+import { InteractionRuntime } from "../../interactions/interactionStateMachine";
 import type { InteractionState } from "../../interactions/interaction.types";
 import type {
   NormalizedLandmark,
@@ -165,6 +165,7 @@ export const HandTrackingController = ({ videoRef, active }: HandTrackingControl
   const identityTrackerRef = useRef(new HandIdentityTracker());
   const twoHandAnchorRef = useRef<TwoHandEffectAnchor | null>(null);
   const interactionStateRef = useRef<InteractionState>("idle");
+  const interactionRuntimeRef = useRef(new InteractionRuntime());
   const previousDetectionAtRef = useRef(0);
   const updateTracking = useTrackingStore((state) => state.update);
 
@@ -175,6 +176,7 @@ export const HandTrackingController = ({ videoRef, active }: HandTrackingControl
     let detector: HandLandmarker | null = null;
     const overlayCanvas = canvasRef.current;
     const identityTracker = identityTrackerRef.current;
+    const interactionRuntime = interactionRuntimeRef.current;
     let previousDetectionAt = 0;
     let previousUiUpdateAt = 0;
     let fpsWindowStart = performance.now();
@@ -296,7 +298,7 @@ export const HandTrackingController = ({ videoRef, active }: HandTrackingControl
         }));
         const twoHandAnchor = createTwoHandAnchor(hands, twoHandAnchorRef.current, deltaTime);
         twoHandAnchorRef.current = twoHandAnchor;
-        const interaction = resolveInteractionFrame(hands, twoHandAnchor, interactionStateRef.current);
+        const interaction = interactionRuntime.update(hands, twoHandAnchor, now);
         interactionStateRef.current = interaction.state;
 
         hands.forEach((hand) => drawHand(context, hand, layout, useUIStore.getState().debug));
@@ -319,6 +321,15 @@ export const HandTrackingController = ({ videoRef, active }: HandTrackingControl
             inferenceMs,
             twoHandAnchor,
             interactionState: interaction.state,
+            charge: interaction.chargeLevel,
+            maximumCharge: interaction.maximumCharge,
+            formationProgress: interaction.formationProgress,
+            releaseProgress: interaction.releaseProgress,
+            readiness: interaction.readiness,
+            candidateDuration: interaction.candidateDuration,
+            readyDuration: interaction.readyDuration,
+            releaseAnchor: interactionRuntime.releaseAnchor,
+            orbEvent: interaction.lastEvent,
           });
           previousUiUpdateAt = now;
         }
@@ -334,6 +345,8 @@ export const HandTrackingController = ({ videoRef, active }: HandTrackingControl
       identityTracker.reset();
       twoHandAnchorRef.current = null;
       interactionStateRef.current = "idle";
+      interactionRuntime.reset();
+      interactionRuntime.reset();
       const canvas = overlayCanvas;
       canvas?.getContext("2d")?.clearRect(0, 0, canvas.width, canvas.height);
       updateTracking({
@@ -349,5 +362,9 @@ export const HandTrackingController = ({ videoRef, active }: HandTrackingControl
 
   return <LandmarkDebugOverlay canvasRef={canvasRef} />;
 };
+
+
+
+
 
 
