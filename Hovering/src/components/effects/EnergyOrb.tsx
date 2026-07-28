@@ -102,8 +102,8 @@ export const EnergyOrb = () => {
       ctx.clearRect(0, 0, rect.width, rect.height);
       const oneHand = data.interactionState === "one-hand"
         && data.hands.length === 1
-        && data.hands[0].gesture === "open-palm"
-        && data.hands[0].openness >= 0.62
+        && data.hands[0].openness >= 0.54
+        && data.hands[0].pinchStrength < 0.7
         && data.hands[0].trackingConfidence >= 0.5;
       if (!ORB_STATES.has(data.interactionState) && !oneHand) {
         raf = requestAnimationFrame(draw);
@@ -119,7 +119,7 @@ export const EnergyOrb = () => {
         const handEnergy = clamp(hand.openness * hand.trackingConfidence, 0.45, 1);
         const spin = time * 0.0068;
         const pulse = 1 + Math.sin(time * 0.009) * 0.08;
-        const base = Math.max(22, Math.min(rect.width, rect.height) * (0.045 + handEnergy * 0.02)) * pulse;
+        const base = Math.max(30, Math.min(rect.width, rect.height) * (0.06 + handEnergy * 0.026)) * pulse;
         const glow = ctx.createRadialGradient(x, y, 0, x, y, base * 4.8);
         glow.addColorStop(0, `rgba(255, 238, 224, ${0.92 * handEnergy})`);
         glow.addColorStop(0.2, `rgba(255, 96, 62, ${0.68 * handEnergy})`);
