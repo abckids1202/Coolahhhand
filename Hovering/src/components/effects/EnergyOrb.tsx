@@ -33,6 +33,7 @@ type SparkOrb = {
 
 export const EnergyOrb = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const interfaceModeRef = useRef({ active: false, progress: 0 });
   const snapshot = useTrackingStore();
   const latest = useRef<TrackingSnapshot>(snapshot);
   latest.current = snapshot;
@@ -44,6 +45,7 @@ export const EnergyOrb = () => {
     if (!ctx) return;
 
     let raf = 0;
+    let previousTime = 0;
     const particles: OrbParticle[] = Array.from({ length: 360 }, (_, i) => ({
       phase: i * 0.618,
       radius: (i % 29) / 29,
@@ -100,21 +102,114 @@ export const EnergyOrb = () => {
 
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, rect.width, rect.height);
+      const singleHand = data.interactionState === "one-hand" && data.hands.length === 1;
+      const deploymentCommand = singleHand && data.gesture === "pinch";
+      if (deploymentCommand) interfaceModeRef.current.active = true;
+      if (!singleHand || data.gesture === "fist") interfaceModeRef.current.active = false;
+      const delta = previousTime === 0 ? 0.016 : Math.min((time - previousTime) / 1000, 0.05);
+      previousTime = time;
+      const deploymentTarget = interfaceModeRef.current.active ? 1 : 0;
+      interfaceModeRef.current.progress += (deploymentTarget - interfaceModeRef.current.progress) * Math.min(1, delta * 5.2);
+      const interfaceProgress = interfaceModeRef.current.progress;
+      const interfaceVisible = interfaceProgress > 0.015;
       const oneHand = data.interactionState === "one-hand"
         && data.hands.length === 1
         && data.hands[0].openness >= 0.54
         && data.hands[0].pinchStrength < 0.7
         && data.hands[0].trackingConfidence >= 0.5;
-      if (!ORB_STATES.has(data.interactionState) && !oneHand) {
+      if (!ORB_STATES.has(data.interactionState) && !oneHand && !interfaceVisible) {
         raf = requestAnimationFrame(draw);
         return;
       }
 
       const anchor = data.twoHandAnchor;
-      const hand = oneHand ? data.hands[0] : null;
+      const hand = (oneHand || singleHand) ? data.hands[0] : null;
       const point = data.releaseAnchor ?? anchor?.smoothedMidpoint ?? hand?.worldPalmCenter ?? { x: 0, y: 0, z: 0 };
       const x = (point.x + 1) * 0.5 * rect.width;
       const y = (1 - point.y) * 0.5 * rect.height;
+      if (interfaceVisible && singleHand && hand) {
+        const amount = ease(interfaceProgress);
+        const center = Math.max(32, Math.min(rect.width, rect.height) * 0.052);
+        const orbit = center * (2.7 + amount * 2.5);
+        const rotation = time * 0.00034;
+        const modules = ["TRACKING", "EFFECTS", "NETWORK", "METRICS", "VISUALS", "SYSTEM"];
+        ctx.save();
+        ctx.globalCompositeOperation = "lighter";
+
+        const field = ctx.createRadialGradient(x, y, center * 0.2, x, y, orbit * 2.2);
+        field.addColorStop(0, `rgba(178, 249, 255, ${0.22 * amount})`);
+        field.addColorStop(0.45, `rgba(35, 184, 255, ${0.1 * amount})`);
+        field.addColorStop(1, "rgba(0, 40, 88, 0)");
+        ctx.fillStyle = field;
+        ctx.beginPath();
+        ctx.arc(x, y, orbit * 2.2, 0, Math.PI * 2);
+        ctx.fill();
+
+        for (let ring = 0; ring < 4; ring++) {
+          const radius = center * (0.7 + ring * 0.36 + amount * (ring + 1) * 0.42);
+          ctx.strokeStyle = `rgba(${ring === 0 ? 235 : 74}, ${ring === 0 ? 255 : 211}, 255, ${(0.62 - ring * 0.1) * amount})`;
+          ctx.lineWidth = ring === 0 ? 1.7 : 0.9;
+          ctx.setLineDash(ring === 2 ? [7, 9] : ring === 3 ? [2, 10] : []);
+          ctx.beginPath();
+          ctx.arc(x, y, radius, rotation * (ring % 2 ? -1 : 1), Math.PI * 2 + rotation * (ring % 2 ? -1 : 1));
+          ctx.stroke();
+        }
+        ctx.setLineDash([]);
+
+        modules.forEach((label, index) => {
+          const angle = -Math.PI / 2 + index * (Math.PI * 2 / modules.length) + rotation * 0.7;
+          const travel = amount * orbit;
+          const nodeX = x + Math.cos(angle) * travel;
+          const nodeY = y + Math.sin(angle) * travel * 0.7;
+          ctx.strokeStyle = `rgba(104, 224, 255, ${0.42 * amount})`;
+          ctx.lineWidth = 0.9;
+          ctx.beginPath();
+          ctx.moveTo(x, y);
+          ctx.lineTo(nodeX, nodeY);
+          ctx.stroke();
+          ctx.fillStyle = `rgba(110, 237, 255, ${0.9 * amount})`;
+          ctx.beginPath();
+          ctx.arc(nodeX, nodeY, 5 + amount * 3, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = `rgba(220, 252, 255, ${0.76 * amount})`;
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.arc(nodeX, nodeY, 12 + amount * 7, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.font = "9px SFMono-Regular, Consolas, monospace";
+          ctx.fillStyle = `rgba(206, 248, 255, ${0.86 * amount})`;
+          ctx.textAlign = "center";
+          ctx.fillText(label, nodeX, nodeY + 27 + amount * 8);
+          const packet = (time * 0.0012 + index * 0.17) % 1;
+          const packetX = x + (nodeX - x) * packet;
+          const packetY = y + (nodeY - y) * packet;
+          ctx.fillStyle = `rgba(255, 255, 255, ${0.9 * amount})`;
+          ctx.beginPath();
+          ctx.arc(packetX, packetY, 2, 0, Math.PI * 2);
+          ctx.fill();
+        });
+
+        const core = ctx.createRadialGradient(x - center * 0.25, y - center * 0.3, 0, x, y, center);
+        core.addColorStop(0, `rgba(255, 255, 255, ${0.96 * amount})`);
+        core.addColorStop(0.35, `rgba(133, 239, 255, ${0.9 * amount})`);
+        core.addColorStop(0.8, `rgba(25, 115, 224, ${0.55 * amount})`);
+        core.addColorStop(1, "rgba(0, 38, 120, 0)");
+        ctx.fillStyle = core;
+        ctx.beginPath();
+        ctx.arc(x, y, center * (1 - amount * 0.25), 0, Math.PI * 2);
+        ctx.fill();
+        ctx.font = "8px SFMono-Regular, Consolas, monospace";
+        ctx.fillStyle = `rgba(205, 249, 255, ${0.72 * amount})`;
+        ctx.textAlign = "center";
+        ctx.fillText(interfaceProgress > 0.86 ? "SPATIAL NEXUS" : "DEPLOYING", x, y - orbit - 24);
+        ctx.restore();
+        raf = requestAnimationFrame(draw);
+        return;
+      }
+      if (interfaceVisible && !singleHand) {
+        raf = requestAnimationFrame(draw);
+        return;
+      }
       if (oneHand && hand) {
         const handEnergy = clamp(hand.openness * hand.trackingConfidence, 0.45, 1);
         const spin = time * 0.0068;
