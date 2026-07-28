@@ -179,6 +179,33 @@ export const EnergyOrb = () => {
         ctx.beginPath();
         ctx.arc(orbX, orbY, radius * 4.5, 0, Math.PI * 2);
         ctx.fill();
+        const fingerRingX = orbX - fingertipOrbRef.current.dirX * radius * 2.55;
+        const fingerRingY = orbY - fingertipOrbRef.current.dirY * radius * 2.55;
+        const ringSpin = time * 0.0038;
+        for (let ring = 0; ring < 9; ring++) {
+          const ringRadius = radius * (0.86 + ring * 0.29);
+          const ringTilt = 0.35 + (ring % 4) * 0.12;
+          const ringAngle = ringSpin * (ring % 2 ? -1 : 1) + ring * 0.22;
+          ctx.strokeStyle = `rgba(${ring % 3 === 0 ? 88 : 36}, ${ring % 2 ? 182 : 224}, 255, ${(0.42 - ring * 0.025) * amount})`;
+          ctx.lineWidth = ring % 3 === 0 ? 1.2 : 0.65;
+          ctx.beginPath();
+          ctx.ellipse(fingerRingX, fingerRingY, ringRadius, ringRadius * ringTilt, ringAngle, 0, Math.PI * 2);
+          ctx.stroke();
+          if (ring % 2 === 0) {
+            const markerAngle = ringAngle + time * 0.0054 + ring;
+            const markerX = fingerRingX + Math.cos(markerAngle) * ringRadius;
+            const markerY = fingerRingY + Math.sin(markerAngle) * ringRadius * ringTilt;
+            ctx.fillStyle = `rgba(181, 242, 255, ${0.7 * amount})`;
+            ctx.beginPath();
+            ctx.arc(markerX, markerY, 1.1 + (ring % 3) * 0.45, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+        ctx.strokeStyle = `rgba(113, 214, 255, ${0.26 * amount})`;
+        ctx.lineWidth = 0.8;
+        ctx.beginPath();
+        ctx.arc(fingerRingX, fingerRingY, radius * 3.35, ringSpin, ringSpin + Math.PI * 1.25);
+        ctx.stroke();
         for (let ring = 0; ring < 3; ring++) {
           ctx.strokeStyle = `rgba(${ring === 1 ? 206 : 145}, ${ring === 0 ? 122 : 72}, 255, ${(0.52 - ring * 0.1) * amount})`;
           ctx.lineWidth = ring === 0 ? 1.1 : 0.7;
