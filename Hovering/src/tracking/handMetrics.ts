@@ -6,6 +6,29 @@ const PALM_WEIGHTS = [0.15, 0.2, 0.3, 0.2, 0.15] as const;
 const TIPS = [4, 8, 12, 16, 20] as const;
 const PIPS = [3, 6, 10, 14, 18] as const;
 
+const fingerExtension = (
+  landmarks: NormalizedLandmark[],
+  mcpIndex: number,
+  pipIndex: number,
+  tipIndex: number,
+) => {
+  const wrist = landmarks[0];
+  const scale = calculateHandScale(landmarks);
+  const pipDistance = distance3(landmarks[pipIndex], wrist) / scale;
+  const tipDistance = distance3(landmarks[tipIndex], wrist) / scale;
+  const ratioScore = clamp((tipDistance / Math.max(pipDistance, 0.001) - 1.02) / 0.3, 0, 1);
+  const palmDistance = distance3(landmarks[tipIndex], landmarks[mcpIndex]) / scale;
+  return clamp(ratioScore * 0.7 + clamp((palmDistance - 0.6) / 0.7, 0, 1) * 0.3, 0, 1);
+};
+
+export const calculatePointingScore = (landmarks: NormalizedLandmark[]) => {
+  const index = fingerExtension(landmarks, 5, 6, 8);
+  const middle = fingerExtension(landmarks, 9, 10, 12);
+  const ring = fingerExtension(landmarks, 13, 14, 16);
+  const pinky = fingerExtension(landmarks, 17, 18, 20);
+  return clamp(index * 0.5 + (1 - middle) * 0.18 + (1 - ring) * 0.16 + (1 - pinky) * 0.16, 0, 1);
+};
+
 export const calculatePalmCenter = (
   landmarks: NormalizedLandmark[],
 ): NormalizedLandmark => {

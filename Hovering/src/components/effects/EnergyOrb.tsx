@@ -34,6 +34,7 @@ type SparkOrb = {
 export const EnergyOrb = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const interfaceModeRef = useRef({ active: false, progress: 0 });
+  const fingertipOrbRef = useRef({ x: 0, y: 0, dirX: 0, dirY: -1, progress: 0, holdMs: 0 });
   const snapshot = useTrackingStore();
   const latest = useRef<TrackingSnapshot>(snapshot);
   latest.current = snapshot;
@@ -112,12 +113,22 @@ export const EnergyOrb = () => {
       interfaceModeRef.current.progress += (deploymentTarget - interfaceModeRef.current.progress) * Math.min(1, delta * 5.2);
       const interfaceProgress = interfaceModeRef.current.progress;
       const interfaceVisible = interfaceProgress > 0.015;
+      const pointingHand = data.interactionState === "one-hand"
+        && data.hands.length === 1
+        && data.hands[0].gesture === "point"
+        && data.hands[0].trackingConfidence >= 0.42;
+      const fingertipTarget = pointingHand ? 1 : 0;
+      fingertipOrbRef.current.progress += (fingertipTarget - fingertipOrbRef.current.progress) * Math.min(1, delta * 6);
+      fingertipOrbRef.current.holdMs = pointingHand
+        ? Math.min(1400, fingertipOrbRef.current.holdMs + delta * 1000)
+        : Math.max(0, fingertipOrbRef.current.holdMs - delta * 1000 * 2.5);
+      const fingertipVisible = fingertipOrbRef.current.progress > 0.015;
       const oneHand = data.interactionState === "one-hand"
         && data.hands.length === 1
         && data.hands[0].openness >= 0.54
         && data.hands[0].pinchStrength < 0.7
         && data.hands[0].trackingConfidence >= 0.5;
-      if (!ORB_STATES.has(data.interactionState) && !oneHand && !interfaceVisible) {
+      if (!ORB_STATES.has(data.interactionState) && !oneHand && !interfaceVisible && !fingertipVisible) {
         raf = requestAnimationFrame(draw);
         return;
       }
@@ -127,6 +138,87 @@ export const EnergyOrb = () => {
       const point = data.releaseAnchor ?? anchor?.smoothedMidpoint ?? hand?.worldPalmCenter ?? { x: 0, y: 0, z: 0 };
       const x = (point.x + 1) * 0.5 * rect.width;
       const y = (1 - point.y) * 0.5 * rect.height;
+      if (pointingHand) {
+        const indexDip = data.hands[0].landmarks[7];
+        const indexTip = data.hands[0].landmarks[8];
+        if (indexDip && indexTip) {
+          const rawDirX = -(indexTip.x - indexDip.x);
+          const rawDirY = -(indexTip.y - indexDip.y);
+          const length = Math.hypot(rawDirX, rawDirY) || 1;
+          const dirX = rawDirX / length;
+          const dirY = rawDirY / length;
+          const tipWorldX = data.hands[0].worldPalmCenter.x - (indexTip.x - data.hands[0].palmNormalized.x) * 2;
+          const tipWorldY = data.hands[0].worldPalmCenter.y - (indexTip.y - data.hands[0].palmNormalized.y) * 2;
+          const targetX = (tipWorldX + dirX * 0.2) * 0.5 * rect.width + rect.width * 0.5;
+          const targetY = (1 - (tipWorldY + dirY * 0.2)) * 0.5 * rect.height;
+          const smoothing = 1 - Math.exp(-14 * delta);
+          fingertipOrbRef.current.x += (targetX - fingertipOrbRef.current.x) * smoothing;
+          fingertipOrbRef.current.y += (targetY - fingertipOrbRef.current.y) * smoothing;
+          fingertipOrbRef.current.dirX += (dirX - fingertipOrbRef.current.dirX) * (1 - Math.exp(-10 * delta));
+          fingertipOrbRef.current.dirY += (dirY - fingertipOrbRef.current.dirY) * (1 - Math.exp(-10 * delta));
+        }
+      }
+      if (fingertipVisible && !interfaceVisible && !ORB_STATES.has(data.interactionState)) {
+        const amount = ease(fingertipOrbRef.current.progress);
+        const charge = clamp(fingertipOrbRef.current.holdMs / 1400, 0, 1);
+        const orbX = fingertipOrbRef.current.x;
+        const orbY = fingertipOrbRef.current.y;
+        const radius = Math.min(rect.width, rect.height) * (0.018 + charge * 0.012) * amount;
+        const spin = time * 0.0018;
+        ctx.save();
+        ctx.globalCompositeOperation = "lighter";
+        const halo = ctx.createRadialGradient(orbX, orbY, 0, orbX, orbY, radius * 4.5);
+        halo.addColorStop(0, `rgba(243, 219, 255, ${0.55 * amount})`);
+        halo.addColorStop(0.3, `rgba(164, 76, 255, ${0.45 * amount})`);
+        halo.addColorStop(0.72, `rgba(65, 65, 226, ${0.16 * amount})`);
+        halo.addColorStop(1, "rgba(26, 0, 70, 0)");
+        ctx.fillStyle = halo;
+        ctx.beginPath();
+        ctx.arc(orbX, orbY, radius * 4.5, 0, Math.PI * 2);
+        ctx.fill();
+        for (let ring = 0; ring < 3; ring++) {
+          ctx.strokeStyle = `rgba(${ring === 1 ? 206 : 145}, ${ring === 0 ? 122 : 72}, 255, ${(0.52 - ring * 0.1) * amount})`;
+          ctx.lineWidth = ring === 0 ? 1.1 : 0.7;
+          ctx.beginPath();
+          ctx.ellipse(orbX, orbY, radius * (1.22 + ring * 0.2), radius * (0.58 + ring * 0.12), spin * (ring % 2 ? -1 : 1), 0, Math.PI * 2);
+          ctx.stroke();
+        }
+        for (let particle = 0; particle < 34; particle++) {
+          const angle = particle * 2.399 + spin * (particle % 2 ? -1 : 1);
+          const orbit = radius * (1.45 + ((particle * 7) % 13) / 8) * (1 - amount * 0.25);
+          const px = orbX + Math.cos(angle) * orbit;
+          const py = orbY + Math.sin(angle) * orbit;
+          ctx.fillStyle = `rgba(195, 140, 255, ${(0.2 + (particle % 4) * 0.08) * amount})`;
+          ctx.beginPath();
+          ctx.arc(px, py, 0.8 + (particle % 3) * 0.35, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        const linkStartX = orbX - fingertipOrbRef.current.dirX * radius * 1.8;
+        const linkStartY = orbY - fingertipOrbRef.current.dirY * radius * 1.8;
+        ctx.strokeStyle = `rgba(183, 112, 255, ${0.28 * amount})`;
+        ctx.lineWidth = 0.8;
+        ctx.beginPath();
+        ctx.moveTo(linkStartX, linkStartY);
+        ctx.quadraticCurveTo(
+          orbX - fingertipOrbRef.current.dirX * radius * 1.25 + fingertipOrbRef.current.dirY * radius * 0.65,
+          orbY - fingertipOrbRef.current.dirY * radius * 1.25 - fingertipOrbRef.current.dirX * radius * 0.65,
+          orbX,
+          orbY,
+        );
+        ctx.stroke();
+        const core = ctx.createRadialGradient(orbX - radius * 0.28, orbY - radius * 0.3, 0, orbX, orbY, radius);
+        core.addColorStop(0, `rgba(18, 5, 31, ${0.98 * amount})`);
+        core.addColorStop(0.55, `rgba(84, 27, 137, ${0.94 * amount})`);
+        core.addColorStop(0.85, `rgba(170, 73, 255, ${0.65 * amount})`);
+        core.addColorStop(1, "rgba(39, 0, 92, 0)");
+        ctx.fillStyle = core;
+        ctx.beginPath();
+        ctx.arc(orbX, orbY, radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+        raf = requestAnimationFrame(draw);
+        return;
+      }
       if (interfaceVisible && singleHand && hand) {
         const amount = ease(interfaceProgress);
         const center = Math.max(32, Math.min(rect.width, rect.height) * 0.052);

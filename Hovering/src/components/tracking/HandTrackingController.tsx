@@ -8,6 +8,7 @@ import {
   calculateOpenness,
   calculatePalmCenter,
   calculatePinchStrength,
+  calculatePointingScore,
   calculateRotation,
 } from "../../tracking/handMetrics";
 import { classifyGesture, GestureStabilizer } from "../../tracking/gestureClassifier";
@@ -254,7 +255,8 @@ export const HandTrackingController = ({ videoRef, active }: HandTrackingControl
           const ndc = screenToNdc(screenPalmCenter, rect.width, rect.height);
           const openness = calculateOpenness(landmarks, palmCenter);
           const pinchStrength = calculatePinchStrength(landmarks);
-          const rawGesture = classifyGesture(openness, pinchStrength);
+          const pointingScore = calculatePointingScore(landmarks);
+          const rawGesture = classifyGesture(openness, pinchStrength, pointingScore);
           const stableGesture = stabilizersRef.current.get(rawKey)!.update(rawGesture);
           const handScale = calculateHandScale(landmarks);
           const pinchScreen = normalizedLandmarkToScreen({
