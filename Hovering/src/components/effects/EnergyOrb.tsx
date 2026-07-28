@@ -135,7 +135,10 @@ export const EnergyOrb = () => {
 
       const anchor = data.twoHandAnchor;
       const hand = (oneHand || singleHand) ? data.hands[0] : null;
-      const point = data.releaseAnchor ?? anchor?.smoothedMidpoint ?? hand?.worldPalmCenter ?? { x: 0, y: 0, z: 0 };
+      const handOrbPoint = oneHand && hand
+        ? { x: hand.worldPalmCenter.x, y: hand.worldPalmCenter.y + 0.24, z: hand.worldPalmCenter.z }
+        : null;
+      const point = data.releaseAnchor ?? anchor?.smoothedMidpoint ?? handOrbPoint ?? hand?.worldPalmCenter ?? { x: 0, y: 0, z: 0 };
       const x = (point.x + 1) * 0.5 * rect.width;
       const y = (1 - point.y) * 0.5 * rect.height;
       if (pointingHand) {
@@ -163,7 +166,7 @@ export const EnergyOrb = () => {
         const charge = clamp(fingertipOrbRef.current.holdMs / 1400, 0, 1);
         const orbX = fingertipOrbRef.current.x;
         const orbY = fingertipOrbRef.current.y;
-        const radius = Math.min(rect.width, rect.height) * (0.018 + charge * 0.012) * amount;
+        const radius = Math.min(rect.width, rect.height) * (0.03 + charge * 0.018) * amount;
         const spin = time * 0.0018;
         ctx.save();
         ctx.globalCompositeOperation = "lighter";
