@@ -117,6 +117,10 @@ export const EnergyOrb = () => {
         && data.hands.length === 1
         && data.hands[0].gesture === "point"
         && data.hands[0].trackingConfidence >= 0.42;
+      const twoHandPointing = data.hands.length === 2
+        && data.hands.every((trackedHand) => trackedHand.gesture === "point" && trackedHand.trackingConfidence >= 0.42);
+      const twoHandOpen = data.hands.length === 2
+        && data.hands.every((trackedHand) => trackedHand.gesture === "open-palm" && trackedHand.openness >= 0.64 && trackedHand.trackingConfidence >= 0.42);
       const fingertipTarget = pointingHand ? 1 : 0;
       fingertipOrbRef.current.progress += (fingertipTarget - fingertipOrbRef.current.progress) * Math.min(1, delta * 6);
       fingertipOrbRef.current.holdMs = pointingHand
@@ -128,7 +132,7 @@ export const EnergyOrb = () => {
         && data.hands[0].openness >= 0.54
         && data.hands[0].pinchStrength < 0.7
         && data.hands[0].trackingConfidence >= 0.5;
-      if (!ORB_STATES.has(data.interactionState) && !oneHand && !interfaceVisible && !fingertipVisible) {
+      if (!ORB_STATES.has(data.interactionState) && !oneHand && !interfaceVisible && !fingertipVisible && !twoHandPointing && !twoHandOpen) {
         raf = requestAnimationFrame(draw);
         return;
       }
@@ -141,6 +145,104 @@ export const EnergyOrb = () => {
       const point = data.releaseAnchor ?? anchor?.smoothedMidpoint ?? handOrbPoint ?? hand?.worldPalmCenter ?? { x: 0, y: 0, z: 0 };
       const x = (point.x + 1) * 0.5 * rect.width;
       const y = (1 - point.y) * 0.5 * rect.height;
+      if (twoHandPointing || twoHandOpen) {
+        const first = data.hands[0];
+        const second = data.hands[1];
+        const midpoint = {
+          x: (first.worldPalmCenter.x + second.worldPalmCenter.x) * 0.5,
+          y: (first.worldPalmCenter.y + second.worldPalmCenter.y) * 0.5,
+        };
+        const centerX = (midpoint.x + 1) * 0.5 * rect.width;
+        const centerY = (1 - midpoint.y) * 0.5 * rect.height;
+        ctx.save();
+        ctx.globalCompositeOperation = "lighter";
+        if (twoHandPointing) {
+          const ringBase = Math.max(28, Math.min(rect.width, rect.height) * 0.055);
+          const rotation = time * 0.0032;
+          const glow = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, ringBase * 5.2);
+          glow.addColorStop(0, "rgba(193, 241, 255, .28)");
+          glow.addColorStop(.32, "rgba(52, 168, 255, .16)");
+          glow.addColorStop(1, "rgba(0, 24, 90, 0)");
+          ctx.fillStyle = glow;
+          ctx.beginPath();
+          ctx.arc(centerX, centerY, ringBase * 5.2, 0, Math.PI * 2);
+          ctx.fill();
+          for (let ring = 0; ring < 11; ring++) {
+            const radius = ringBase * (0.72 + ring * 0.27);
+            const tilt = 0.3 + (ring % 5) * 0.1;
+            const angle = rotation * (ring % 2 ? -1 : 1) + ring * 0.16;
+            ctx.strokeStyle = `rgba(${ring % 3 === 0 ? 100 : 40}, ${ring % 2 ? 190 : 235}, 255, ${0.52 - ring * 0.028})`;
+            ctx.lineWidth = ring % 3 === 0 ? 1.35 : 0.7;
+            ctx.beginPath();
+            ctx.ellipse(centerX, centerY, radius, radius * tilt, angle, 0, Math.PI * 2);
+            ctx.stroke();
+            if (ring % 2 === 0) {
+              const markerAngle = angle + time * 0.005 + ring;
+              ctx.fillStyle = "rgba(211, 250, 255, .82)";
+              ctx.beginPath();
+              ctx.arc(centerX + Math.cos(markerAngle) * radius, centerY + Math.sin(markerAngle) * radius * tilt, 1.6, 0, Math.PI * 2);
+              ctx.fill();
+            }
+          }
+          [first, second].forEach((trackedHand) => {
+            const palmX = (trackedHand.worldPalmCenter.x + 1) * 0.5 * rect.width;
+            const palmY = (1 - trackedHand.worldPalmCenter.y) * 0.5 * rect.height;
+            ctx.strokeStyle = "rgba(106, 215, 255, .34)";
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(centerX, centerY);
+            ctx.lineTo(palmX, palmY);
+            ctx.stroke();
+          });
+          ctx.fillStyle = "rgba(225, 252, 255, .95)";
+          ctx.beginPath();
+          ctx.arc(centerX, centerY, ringBase * 0.23, 0, Math.PI * 2);
+          ctx.fill();
+        } else {
+          const rotation = time * 0.0012;
+          [first, second].forEach((trackedHand, handIndex) => {
+            const palmX = (trackedHand.worldPalmCenter.x + 1) * 0.5 * rect.width;
+            const palmY = (1 - trackedHand.worldPalmCenter.y) * 0.5 * rect.height;
+            const base = Math.max(25, Math.min(rect.width, rect.height) * 0.042);
+            const aura = ctx.createRadialGradient(palmX, palmY, 0, palmX, palmY, base * 4.3);
+            aura.addColorStop(0, "rgba(255, 246, 190, .36)");
+            aura.addColorStop(.3, "rgba(255, 163, 58, .2)");
+            aura.addColorStop(1, "rgba(125, 24, 0, 0)");
+            ctx.fillStyle = aura;
+            ctx.beginPath();
+            ctx.arc(palmX, palmY, base * 4.3, 0, Math.PI * 2);
+            ctx.fill();
+            for (let ring = 0; ring < 5; ring++) {
+              const radius = base * (0.72 + ring * 0.32);
+              ctx.strokeStyle = `rgba(255, ${205 - ring * 18}, ${94 - ring * 8}, ${0.62 - ring * 0.08})`;
+              ctx.lineWidth = ring === 0 ? 1.5 : 0.85;
+              ctx.setLineDash(ring % 2 ? [4, 6] : []);
+              ctx.beginPath();
+              ctx.arc(palmX, palmY, radius, rotation * (handIndex ? -1 : 1) + ring * 0.3, Math.PI * 2 + rotation * (handIndex ? -1 : 1) + ring * 0.3);
+              ctx.stroke();
+            }
+            ctx.setLineDash([]);
+            for (let ray = 0; ray < 12; ray++) {
+              const angle = ray * Math.PI / 6 + rotation * (handIndex ? -1 : 1);
+              const inner = base * 0.9;
+              const outer = base * (1.55 + (ray % 3) * 0.18);
+              ctx.strokeStyle = "rgba(255, 220, 120, .42)";
+              ctx.lineWidth = ray % 3 === 0 ? 1.2 : 0.6;
+              ctx.beginPath();
+              ctx.moveTo(palmX + Math.cos(angle) * inner, palmY + Math.sin(angle) * inner);
+              ctx.lineTo(palmX + Math.cos(angle) * outer, palmY + Math.sin(angle) * outer);
+              ctx.stroke();
+            }
+            ctx.fillStyle = "rgba(255, 244, 191, .9)";
+            ctx.beginPath();
+            ctx.arc(palmX, palmY, base * 0.24, 0, Math.PI * 2);
+            ctx.fill();
+          });
+        }
+        ctx.restore();
+        raf = requestAnimationFrame(draw);
+        return;
+      }
       if (pointingHand) {
         const indexDip = data.hands[0].landmarks[7];
         const indexTip = data.hands[0].landmarks[8];
@@ -179,33 +281,6 @@ export const EnergyOrb = () => {
         ctx.beginPath();
         ctx.arc(orbX, orbY, radius * 4.5, 0, Math.PI * 2);
         ctx.fill();
-        const fingerRingX = orbX - fingertipOrbRef.current.dirX * radius * 2.55;
-        const fingerRingY = orbY - fingertipOrbRef.current.dirY * radius * 2.55;
-        const ringSpin = time * 0.0038;
-        for (let ring = 0; ring < 9; ring++) {
-          const ringRadius = radius * (0.86 + ring * 0.29);
-          const ringTilt = 0.35 + (ring % 4) * 0.12;
-          const ringAngle = ringSpin * (ring % 2 ? -1 : 1) + ring * 0.22;
-          ctx.strokeStyle = `rgba(${ring % 3 === 0 ? 88 : 36}, ${ring % 2 ? 182 : 224}, 255, ${(0.42 - ring * 0.025) * amount})`;
-          ctx.lineWidth = ring % 3 === 0 ? 1.2 : 0.65;
-          ctx.beginPath();
-          ctx.ellipse(fingerRingX, fingerRingY, ringRadius, ringRadius * ringTilt, ringAngle, 0, Math.PI * 2);
-          ctx.stroke();
-          if (ring % 2 === 0) {
-            const markerAngle = ringAngle + time * 0.0054 + ring;
-            const markerX = fingerRingX + Math.cos(markerAngle) * ringRadius;
-            const markerY = fingerRingY + Math.sin(markerAngle) * ringRadius * ringTilt;
-            ctx.fillStyle = `rgba(181, 242, 255, ${0.7 * amount})`;
-            ctx.beginPath();
-            ctx.arc(markerX, markerY, 1.1 + (ring % 3) * 0.45, 0, Math.PI * 2);
-            ctx.fill();
-          }
-        }
-        ctx.strokeStyle = `rgba(113, 214, 255, ${0.26 * amount})`;
-        ctx.lineWidth = 0.8;
-        ctx.beginPath();
-        ctx.arc(fingerRingX, fingerRingY, radius * 3.35, ringSpin, ringSpin + Math.PI * 1.25);
-        ctx.stroke();
         for (let ring = 0; ring < 3; ring++) {
           ctx.strokeStyle = `rgba(${ring === 1 ? 206 : 145}, ${ring === 0 ? 122 : 72}, 255, ${(0.52 - ring * 0.1) * amount})`;
           ctx.lineWidth = ring === 0 ? 1.1 : 0.7;
