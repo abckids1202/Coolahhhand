@@ -259,7 +259,7 @@ export const EnergyOrb = () => {
           [first, second].forEach((trackedHand, handIndex) => {
             const palmX = (trackedHand.worldPalmCenter.x + 1) * 0.5 * rect.width;
             const palmY = (1 - trackedHand.worldPalmCenter.y) * 0.5 * rect.height;
-            const base = Math.max(48, Math.min(rect.width, rect.height) * 0.072);
+            const base = Math.max(72, Math.min(rect.width, rect.height) * 0.108);
             const aura = ctx.createRadialGradient(palmX, palmY, 0, palmX, palmY, base * 5.2);
             aura.addColorStop(0, "rgba(255, 246, 190, .36)");
             aura.addColorStop(.3, "rgba(255, 163, 58, .2)");
@@ -324,7 +324,7 @@ export const EnergyOrb = () => {
         const charge = clamp(fingertipOrbRef.current.holdMs / 1400, 0, 1);
         const orbX = fingertipOrbRef.current.x;
         const orbY = fingertipOrbRef.current.y;
-        const radius = Math.min(rect.width, rect.height) * (0.03 + charge * 0.018) * amount;
+        const radius = Math.min(rect.width, rect.height) * (0.06 + charge * 0.036) * amount;
         const spin = time * 0.0018;
         ctx.save();
         ctx.globalCompositeOperation = "lighter";
