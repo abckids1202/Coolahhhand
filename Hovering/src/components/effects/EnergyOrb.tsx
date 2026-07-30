@@ -153,11 +153,11 @@ export const EnergyOrb = () => {
           y: (first.worldPalmCenter.y + second.worldPalmCenter.y) * 0.5,
         };
         const centerX = (midpoint.x + 1) * 0.5 * rect.width;
-        const centerY = (1 - midpoint.y) * 0.5 * rect.height;
         ctx.save();
         ctx.globalCompositeOperation = "lighter";
         if (twoHandPointing) {
-          const ringBase = Math.max(28, Math.min(rect.width, rect.height) * 0.055);
+          const ringBase = Math.max(32, Math.min(rect.width, rect.height) * 0.05);
+          const centerY = (1 - midpoint.y) * 0.5 * rect.height - ringBase * 0.9;
           const rotation = time * 0.0032;
           const glow = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, ringBase * 5.2);
           glow.addColorStop(0, "rgba(193, 241, 255, .28)");
@@ -168,7 +168,7 @@ export const EnergyOrb = () => {
           ctx.arc(centerX, centerY, ringBase * 5.2, 0, Math.PI * 2);
           ctx.fill();
           for (let ring = 0; ring < 11; ring++) {
-            const radius = ringBase * (0.72 + ring * 0.27);
+            const radius = ringBase * (0.72 + ring * 0.42);
             const tilt = 0.3 + (ring % 5) * 0.1;
             const angle = rotation * (ring % 2 ? -1 : 1) + ring * 0.16;
             ctx.strokeStyle = `rgba(${ring % 3 === 0 ? 100 : 40}, ${ring % 2 ? 190 : 235}, 255, ${0.52 - ring * 0.028})`;
@@ -203,17 +203,17 @@ export const EnergyOrb = () => {
           [first, second].forEach((trackedHand, handIndex) => {
             const palmX = (trackedHand.worldPalmCenter.x + 1) * 0.5 * rect.width;
             const palmY = (1 - trackedHand.worldPalmCenter.y) * 0.5 * rect.height;
-            const base = Math.max(25, Math.min(rect.width, rect.height) * 0.042);
-            const aura = ctx.createRadialGradient(palmX, palmY, 0, palmX, palmY, base * 4.3);
+            const base = Math.max(48, Math.min(rect.width, rect.height) * 0.072);
+            const aura = ctx.createRadialGradient(palmX, palmY, 0, palmX, palmY, base * 5.2);
             aura.addColorStop(0, "rgba(255, 246, 190, .36)");
             aura.addColorStop(.3, "rgba(255, 163, 58, .2)");
             aura.addColorStop(1, "rgba(125, 24, 0, 0)");
             ctx.fillStyle = aura;
             ctx.beginPath();
-            ctx.arc(palmX, palmY, base * 4.3, 0, Math.PI * 2);
+            ctx.arc(palmX, palmY, base * 5.2, 0, Math.PI * 2);
             ctx.fill();
             for (let ring = 0; ring < 5; ring++) {
-              const radius = base * (0.72 + ring * 0.32);
+              const radius = base * (0.8 + ring * 0.48);
               ctx.strokeStyle = `rgba(255, ${205 - ring * 18}, ${94 - ring * 8}, ${0.62 - ring * 0.08})`;
               ctx.lineWidth = ring === 0 ? 1.5 : 0.85;
               ctx.setLineDash(ring % 2 ? [4, 6] : []);
