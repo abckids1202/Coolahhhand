@@ -10,11 +10,18 @@ export const classifyGesture = (
   openness: number,
   pinchStrength: number,
   pointingScore = 0,
+  twoFingerScore = 0,
 ): GestureReading => {
   if (pinchStrength >= 0.72 && openness > 0.3) {
     return {
       gesture: "pinch",
       confidence: clamp((pinchStrength - 0.62) / 0.38, 0, 1),
+    };
+  }
+  if (twoFingerScore >= 0.68) {
+    return {
+      gesture: "two-finger",
+      confidence: clamp((twoFingerScore - 0.54) / 0.46, 0, 1),
     };
   }
   if (pointingScore >= 0.72) {

@@ -16,7 +16,7 @@ export interface WorldPoint {
   z: number;
 }
 
-export type GestureType = "none" | "open-palm" | "fist" | "pinch" | "point" | "unknown";
+export type GestureType = "none" | "open-palm" | "fist" | "pinch" | "point" | "two-finger" | "unknown";
 
 export interface StableTrackedHand {
   id: string;

@@ -29,6 +29,14 @@ export const calculatePointingScore = (landmarks: NormalizedLandmark[]) => {
   return clamp(index * 0.5 + (1 - middle) * 0.18 + (1 - ring) * 0.16 + (1 - pinky) * 0.16, 0, 1);
 };
 
+export const calculateTwoFingerScore = (landmarks: NormalizedLandmark[]) => {
+  const index = fingerExtension(landmarks, 5, 6, 8);
+  const middle = fingerExtension(landmarks, 9, 10, 12);
+  const ring = fingerExtension(landmarks, 13, 14, 16);
+  const pinky = fingerExtension(landmarks, 17, 18, 20);
+  return clamp(index * 0.46 + middle * 0.36 + (1 - ring) * 0.1 + (1 - pinky) * 0.08 - ring * 0.15 - pinky * 0.12, 0, 1);
+};
+
 export const calculatePalmCenter = (
   landmarks: NormalizedLandmark[],
 ): NormalizedLandmark => {

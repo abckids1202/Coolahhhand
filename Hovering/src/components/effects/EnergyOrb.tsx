@@ -121,6 +121,10 @@ export const EnergyOrb = () => {
         && data.hands.every((trackedHand) => trackedHand.gesture === "point" && trackedHand.trackingConfidence >= 0.42);
       const twoHandOpen = data.hands.length === 2
         && data.hands.every((trackedHand) => trackedHand.gesture === "open-palm" && trackedHand.openness >= 0.64 && trackedHand.trackingConfidence >= 0.42);
+      const twoFingerHand = data.interactionState === "one-hand"
+        && data.hands.length === 1
+        && data.hands[0].gesture === "two-finger"
+        && data.hands[0].trackingConfidence >= 0.42;
       const fistMode = (data.hands.length === 1 && data.hands[0].gesture === "fist")
         || (data.hands.length === 2 && data.hands.every((trackedHand) => trackedHand.gesture === "fist"));
       const fingertipTarget = pointingHand ? 1 : 0;
@@ -134,7 +138,7 @@ export const EnergyOrb = () => {
         && data.hands[0].openness >= 0.54
         && data.hands[0].pinchStrength < 0.7
         && data.hands[0].trackingConfidence >= 0.5;
-      if (!ORB_STATES.has(data.interactionState) && !oneHand && !interfaceVisible && !fingertipVisible && !twoHandPointing && !twoHandOpen && !fistMode) {
+      if (!ORB_STATES.has(data.interactionState) && !oneHand && !interfaceVisible && !fingertipVisible && !twoHandPointing && !twoHandOpen && !fistMode && !twoFingerHand) {
         raf = requestAnimationFrame(draw);
         return;
       }
@@ -147,6 +151,53 @@ export const EnergyOrb = () => {
       const point = data.releaseAnchor ?? anchor?.smoothedMidpoint ?? handOrbPoint ?? hand?.worldPalmCenter ?? { x: 0, y: 0, z: 0 };
       const x = (point.x + 1) * 0.5 * rect.width;
       const y = (1 - point.y) * 0.5 * rect.height;
+      if (twoFingerHand) {
+        const trackedHand = data.hands[0];
+        const indexTip = trackedHand.landmarks[8];
+        const middleTip = trackedHand.landmarks[12];
+        if (indexTip && middleTip) {
+          const tipX = (trackedHand.worldPalmCenter.x - (((indexTip.x + middleTip.x) * 0.5) - trackedHand.palmNormalized.x) * 2 + 1) * 0.5 * rect.width;
+          const tipY = (1 - (trackedHand.worldPalmCenter.y - (((indexTip.y + middleTip.y) * 0.5) - trackedHand.palmNormalized.y) * 2)) * 0.5 * rect.height;
+          const base = Math.max(24, Math.min(rect.width, rect.height) * 0.042);
+          const rotation = time * 0.0026;
+          ctx.save();
+          ctx.globalCompositeOperation = "lighter";
+          const aura = ctx.createRadialGradient(tipX, tipY, 0, tipX, tipY, base * 3.8);
+          aura.addColorStop(0, "rgba(218, 250, 255, .34)");
+          aura.addColorStop(.45, "rgba(74, 205, 255, .16)");
+          aura.addColorStop(1, "rgba(0, 84, 180, 0)");
+          ctx.fillStyle = aura;
+          ctx.beginPath();
+          ctx.arc(tipX, tipY, base * 3.8, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = "rgba(141, 233, 255, .28)";
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(x, y);
+          ctx.lineTo(tipX, tipY);
+          ctx.stroke();
+          for (let layer = 0; layer < 15; layer++) {
+            const offset = (layer - 7) * base * 0.48;
+            const layerX = tipX + Math.sin(rotation * 1.3 + layer) * base * 0.12;
+            const layerY = tipY + offset;
+            const radius = base * (0.74 + (layer % 3) * 0.08);
+            ctx.strokeStyle = `rgba(${layer % 4 === 0 ? 200 : 92}, ${layer % 2 ? 220 : 246}, 255, ${0.52 - Math.abs(layer - 7) * 0.018})`;
+            ctx.lineWidth = layer % 4 === 0 ? 1.35 : 0.7;
+            ctx.setLineDash(layer % 3 === 0 ? [4, 6] : []);
+            ctx.beginPath();
+            ctx.arc(layerX, layerY, radius, rotation * (layer % 2 ? -1 : 1) + layer * 0.18, Math.PI * 2 + rotation * (layer % 2 ? -1 : 1) + layer * 0.18);
+            ctx.stroke();
+            ctx.setLineDash([]);
+          }
+          ctx.fillStyle = "rgba(207, 249, 255, .8)";
+          ctx.beginPath();
+          ctx.arc(tipX, tipY, 2.2, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        }
+        raf = requestAnimationFrame(draw);
+        return;
+      }
       if (fistMode) {
         ctx.save();
         ctx.globalCompositeOperation = "lighter";
