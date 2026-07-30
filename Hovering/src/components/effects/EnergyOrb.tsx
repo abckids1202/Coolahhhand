@@ -121,6 +121,8 @@ export const EnergyOrb = () => {
         && data.hands.every((trackedHand) => trackedHand.gesture === "point" && trackedHand.trackingConfidence >= 0.42);
       const twoHandOpen = data.hands.length === 2
         && data.hands.every((trackedHand) => trackedHand.gesture === "open-palm" && trackedHand.openness >= 0.64 && trackedHand.trackingConfidence >= 0.42);
+      const fistMode = (data.hands.length === 1 && data.hands[0].gesture === "fist")
+        || (data.hands.length === 2 && data.hands.every((trackedHand) => trackedHand.gesture === "fist"));
       const fingertipTarget = pointingHand ? 1 : 0;
       fingertipOrbRef.current.progress += (fingertipTarget - fingertipOrbRef.current.progress) * Math.min(1, delta * 6);
       fingertipOrbRef.current.holdMs = pointingHand
@@ -132,7 +134,7 @@ export const EnergyOrb = () => {
         && data.hands[0].openness >= 0.54
         && data.hands[0].pinchStrength < 0.7
         && data.hands[0].trackingConfidence >= 0.5;
-      if (!ORB_STATES.has(data.interactionState) && !oneHand && !interfaceVisible && !fingertipVisible && !twoHandPointing && !twoHandOpen) {
+      if (!ORB_STATES.has(data.interactionState) && !oneHand && !interfaceVisible && !fingertipVisible && !twoHandPointing && !twoHandOpen && !fistMode) {
         raf = requestAnimationFrame(draw);
         return;
       }
@@ -140,11 +142,65 @@ export const EnergyOrb = () => {
       const anchor = data.twoHandAnchor;
       const hand = (oneHand || singleHand) ? data.hands[0] : null;
       const handOrbPoint = oneHand && hand
-        ? { x: hand.worldPalmCenter.x, y: hand.worldPalmCenter.y + 0.24, z: hand.worldPalmCenter.z }
+        ? { x: hand.worldPalmCenter.x, y: hand.worldPalmCenter.y + 0.38, z: hand.worldPalmCenter.z }
         : null;
       const point = data.releaseAnchor ?? anchor?.smoothedMidpoint ?? handOrbPoint ?? hand?.worldPalmCenter ?? { x: 0, y: 0, z: 0 };
       const x = (point.x + 1) * 0.5 * rect.width;
       const y = (1 - point.y) * 0.5 * rect.height;
+      if (fistMode) {
+        ctx.save();
+        ctx.globalCompositeOperation = "lighter";
+        data.hands.forEach((trackedHand, handIndex) => {
+          const fistX = (trackedHand.worldPalmCenter.x + 1) * 0.5 * rect.width;
+          const fistY = (1 - trackedHand.worldPalmCenter.y) * 0.5 * rect.height;
+          const base = Math.max(46, Math.min(rect.width, rect.height) * (0.07 + (1 - trackedHand.openness) * 0.035));
+          const spin = time * 0.003 * (handIndex % 2 ? -1 : 1);
+          const heat = ctx.createRadialGradient(fistX - base * 0.2, fistY - base * 0.28, 0, fistX, fistY, base * 2.5);
+          heat.addColorStop(0, "rgba(255, 255, 150, .72)");
+          heat.addColorStop(0.2, "rgba(255, 177, 32, .62)");
+          heat.addColorStop(0.58, "rgba(255, 43, 13, .4)");
+          heat.addColorStop(1, "rgba(116, 0, 0, 0)");
+          ctx.fillStyle = heat;
+          ctx.beginPath();
+          ctx.ellipse(fistX, fistY, base * 2.5, base * 2.05, spin * 0.08, 0, Math.PI * 2);
+          ctx.fill();
+          for (let shell = 0; shell < 5; shell++) {
+            const shellX = fistX + Math.cos(spin * 0.7 + shell) * base * 0.06;
+            const shellY = fistY + Math.sin(spin * 0.7 + shell) * base * 0.06;
+            ctx.strokeStyle = `rgba(255, ${212 - shell * 24}, ${72 - shell * 8}, ${0.7 - shell * 0.08})`;
+            ctx.lineWidth = shell === 0 ? 2.2 : 1;
+            ctx.beginPath();
+            ctx.ellipse(shellX, shellY, base * (0.92 + shell * 0.2), base * (1.15 + shell * 0.16), spin + shell * 0.24, 0, Math.PI * 2);
+            ctx.stroke();
+          }
+          for (let ray = 0; ray < 18; ray++) {
+            const angle = ray * Math.PI * 2 / 18 + spin * 1.4;
+            const inner = base * 1.03;
+            const outer = base * (1.4 + (ray % 4) * 0.18);
+            ctx.strokeStyle = `rgba(255, ${128 + (ray % 3) * 32}, 42, ${0.22 + (ray % 4) * 0.06})`;
+            ctx.lineWidth = ray % 5 === 0 ? 1.7 : 0.75;
+            ctx.beginPath();
+            ctx.moveTo(fistX + Math.cos(angle) * inner, fistY + Math.sin(angle) * inner);
+            ctx.lineTo(fistX + Math.cos(angle + 0.08) * outer, fistY + Math.sin(angle + 0.08) * outer);
+            ctx.stroke();
+          }
+          for (let spark = 0; spark < 14; spark++) {
+            const angle = spark * 2.17 + spin * 1.8;
+            const orbit = base * (1.28 + (spark % 5) * 0.17);
+            ctx.fillStyle = `rgba(255, ${168 + (spark % 3) * 22}, 51, ${0.4 + (spark % 4) * 0.1})`;
+            ctx.beginPath();
+            ctx.arc(fistX + Math.cos(angle) * orbit, fistY + Math.sin(angle) * orbit * 0.85, 1.4 + (spark % 3) * 0.7, 0, Math.PI * 2);
+            ctx.fill();
+          }
+          ctx.fillStyle = "rgba(255, 237, 151, .72)";
+          ctx.beginPath();
+          ctx.arc(fistX, fistY, base * 0.72, 0, Math.PI * 2);
+          ctx.fill();
+        });
+        ctx.restore();
+        raf = requestAnimationFrame(draw);
+        return;
+      }
       if (twoHandPointing || twoHandOpen) {
         const first = data.hands[0];
         const second = data.hands[1];
